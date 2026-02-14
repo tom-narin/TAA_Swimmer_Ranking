@@ -84,8 +84,8 @@ class SwimDataScraper:
             self.wait.until(EC.presence_of_element_located((By.ID, 'SwimmingTypeDetail')))
 
             # Format dates to DD/MM/YYYY for the website's database
-            start_str = start_date.strftime('%d/%m/%Y')
-            end_str = end_date.strftime('%d/%m/%Y')
+            start_str = start_date.strftime('%dd/%mmm/%YYYY')
+            end_str = end_date.strftime('%dd/%mmm/%YYYY')
 
             # Make selections
             if sel_stroke_info['id'] != "2": 
