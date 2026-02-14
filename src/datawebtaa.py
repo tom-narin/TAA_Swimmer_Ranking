@@ -1,8 +1,6 @@
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-
-
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -48,18 +46,16 @@ class SwimDataScraper:
     }
 
     def __init__(self, headless=True):
+        self.service = ChromeService()
         self.options = webdriver.ChromeOptions()
-        self.options.binary_location = '/usr/bin/chromium-browser'
         if headless:
-            self.options.add_argument("--headless")
+            self.options.add_argument('--headless')
             self.options.add_argument("--no-sandbox")
-            self.options.add_argument("--disable-dev-shm-usage")
             self.options.add_argument("--disable-gpu")
+            self.options.add_argument("--disable-dev-shm-usage")
             self.options.add_argument("--window-size=1920x1080")
-            self.options.add_argument("--disable-extensions")
-
-        service = ChromeService(executable_path='/usr/bin/chromedriver')
-        self.driver = webdriver.Chrome(service=service, options=self.options)
+        
+        self.driver = webdriver.Chrome(service=self.service, options=self.options)
         self.wait = WebDriverWait(self.driver, 10)
         self.initial_url = "https://www.thaiaquatics.or.th/Index/HomeRanking?Distance=1&SwimmingTypeDetailId=2"
 
