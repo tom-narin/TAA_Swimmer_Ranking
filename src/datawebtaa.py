@@ -1,5 +1,7 @@
 import pandas as pd
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
 
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -55,9 +57,8 @@ class SwimDataScraper:
             self.options.add_argument("--window-size=1920x1080")
             self.options.add_argument("--disable-extensions")
 
-        # In modern versions of Selenium, the service is managed automatically.
-        # Passing options is sufficient.
-        self.driver = webdriver.Chrome(options=self.options)
+        service = ChromeService(ChromeDriverManager().install())
+        self.driver = webdriver.Chrome(service=service, options=self.options)
         self.wait = WebDriverWait(self.driver, 10)
         self.initial_url = "https://www.thaiaquatics.or.th/Index/HomeRanking?Distance=1&SwimmingTypeDetailId=2"
 
