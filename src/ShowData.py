@@ -1,98 +1,53 @@
 import streamlit as st
 import pandas as pd
-import os
 from datetime import date, timedelta
 from datawebtaa import SwimDataScraper
 
-# --- Page Configuration ---
-st.set_page_config(page_title="TAA's Swimming Analytics", layout="wide", page_icon="🏊")
-
-st.markdown("""
-    <style>
-    .stButton>button { width: 100%; background-color: #004a99; color: white; border-radius: 10px; height: 3em; }
-    .stDataFrame { border: 1px solid #e6e9ef; border-radius: 10px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-def time_to_seconds(time_str):
-    try:
-        if not isinstance(time_str, str) or not time_str.strip() or time_str == "NT":
-            return float('inf')
-        parts = time_str.split(':')
-        if len(parts) == 2:
-            return int(parts[0]) * 60 + float(parts[1])
-        return float(parts[0])
-    except: return float('inf')
+st.set_page_config(page_title="TAA Analytics", layout="wide")
 
 def main():
-    st.title("🏊 Thailand Aquatics Ranking Analytics")
+    st.title("🏊 TAA Ranking Analytics")
+    
+    with st.sidebar:
+        st.header("Debug Console")
+        debug_log = st.empty()
 
-    # Search Parameters
     with st.container():
-        c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
-        with c1: stroke_key = st.selectbox("Stroke", list(SwimDataScraper.STROKES.keys()), format_func=lambda x: SwimDataScraper.STROKES[x]['name'])
-        with c2: dist_key = st.selectbox("Distance", list(SwimDataScraper.DISTANCES.keys()), format_func=lambda x: SwimDataScraper.DISTANCES[x]['name'])
-        with c3: gender_key = st.selectbox("Gender", list(SwimDataScraper.GENDERS.keys()), format_func=lambda x: SwimDataScraper.GENDERS[x]['name'])
-        with c4: pool_key = st.selectbox("Pool", list(SwimDataScraper.POOL_TYPES.keys()), format_func=lambda x: SwimDataScraper.POOL_TYPES[x]['name'])
-        with c5: swimmer_time_input = st.text_input("Your Time (MM:SS.ss)", placeholder="e.g. 01:05.20")
-
-        c6, c7, c8, c9 = st.columns([1, 1, 2, 2])
-        with c6: min_age = st.number_input("Min Age", 5, 100, 10)
-        with c7: max_age = st.number_input("Max Age", 5, 100, 11)
+        col1, col2, col3, col4 = st.columns(4)
+        with col1: stroke = st.selectbox("Stroke", list(SwimDataScraper.STROKES.keys()), format_func=lambda x: SwimDataScraper.STROKES[x]['name'])
+        with col2: dist = st.selectbox("Distance", list(SwimDataScraper.DISTANCES.keys()), format_func=lambda x: SwimDataScraper.DISTANCES[x]['name'])
+        with col3: gender = st.selectbox("Gender", list(SwimDataScraper.GENDERS.keys()), format_func=lambda x: SwimDataScraper.GENDERS[x]['name'])
+        with col4: pool = st.selectbox("Pool", list(SwimDataScraper.POOL_TYPES.keys()), format_func=lambda x: SwimDataScraper.POOL_TYPES[x]['name'])
         
-        # DATE LOGIC: Now and Now - 1 Year
-        with c8:
+        col5, col6, col7 = st.columns([1,1,2])
+        with col5: min_age = st.number_input("Min Age", 5, 90, 10)
+        with col6: max_age = st.number_input("Max Age", 5, 90, 11)
+        with col7:
             today = date.today()
             one_year_ago = today - timedelta(days=365)
-            # Display format dd/mmm/yy using string formatting
-            date_range = st.date_input(
-                "Ranking Period (Start - End)", 
-                value=(one_year_ago, today)
-            )
-            # Handle user only selecting one date
-            start_date = date_range[0] if isinstance(date_range, tuple) else date_range
-            end_date = date_range[1] if isinstance(date_range, tuple) and len(date_range) > 1 else today
-            
-            # Show formatted text for user confirmation
-            st.caption(f"Range: {start_date.strftime('%d/%b/%y')} to {end_date.strftime('%d/%b/%y')}")
+            date_range = st.date_input("Date Range (dd/mmm/yy)", value=(one_year_ago, today))
+            start_d = date_range[0]
+            end_d = date_range[1] if len(date_range) > 1 else today
+            st.caption(f"Selected: {start_d.strftime('%d/%b/%y')} to {end_d.strftime('%d/%b/%y')}")
 
-        with c9:
-            st.write("")
-            fetch_button = st.button("🚀 Fetch Rankings")
-
-    if fetch_button:
+    if st.button("🚀 Fetch Rankings"):
         scraper = SwimDataScraper(headless=True)
-        with st.spinner(f"Scraping rankings..."):
+        with st.status("Fetching Data...", expanded=True) as status:
+            st.write(f"DEBUG: Applying filter {start_d} to {end_d}")
             df = scraper.scrape_rankings(
-                SwimDataScraper.STROKES[stroke_key],
-                SwimDataScraper.DISTANCES[dist_key],
-                SwimDataScraper.GENDERS[gender_key],
-                SwimDataScraper.POOL_TYPES[pool_key],
-                str(min_age), str(max_age),
-                start_date, end_date
+                SwimDataScraper.STROKES[stroke], 
+                SwimDataScraper.DISTANCES[dist],
+                SwimDataScraper.GENDERS[gender],
+                SwimDataScraper.POOL_TYPES[pool],
+                str(min_age), str(max_age), start_d, end_d
             )
-            scraper.close()
-
+            status.update(label="Complete!", state="complete")
+        
         if df is not None and not df.empty:
-            df['Seconds'] = df['Time'].apply(time_to_seconds)
-            df = df.sort_values('Seconds').reset_index(drop=True)
-            df['Rank'] = range(1, len(df) + 1)
-
-            # Metrics
-            m_col1, m_col2, m_col3 = st.columns(3)
-            top_time = df.iloc[0]['Time']
-            top_seconds = df.iloc[0]['Seconds']
-            m_col1.metric("Total Swimmers", len(df))
-            m_col2.metric("Rank #1 Time", top_time)
-            
-            input_seconds = time_to_seconds(swimmer_time_input)
-            if input_seconds < float('inf'):
-                potential_rank = len(df[df['Seconds'] < input_seconds]) + 1
-                m_col3.metric("Your Potential Rank", f"#{potential_rank}")
-
-            st.dataframe(df.drop(columns=['Seconds']), use_container_width=True)
+            st.dataframe(df, use_container_width=True)
         else:
-            st.warning("No data found for this selection.")
+            st.warning("No records found.")
+        scraper.close()
 
 if __name__ == "__main__":
     main()
