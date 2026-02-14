@@ -49,51 +49,75 @@ class SwimDataScraper:
         select_element = self.wait.until(EC.presence_of_element_located((By.ID, element_id)))
         dropdown = Select(select_element)
         dropdown.select_by_value(value)
-        # DEBUG: Verify selection
         print(f"[DEBUG] Selection: ID={element_id} set to '{dropdown.first_selected_option.text}'")
         try:
             self.wait.until(EC.invisibility_of_element_located((By.ID, 'ResultTable_processing')))
         except: pass
 
     def _enter_text_and_wait(self, element_id, text):
-        script = f"document.getElementById('{element_id}').value = '{text}';"
+        # We use a more robust JS script to ensure value is set and events are triggered
+        script = f"""
+            var el = document.getElementById('{element_id}');
+            el.value = '{text}';
+            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            el.blur();
+        """
         self.driver.execute_script(script)
-        self.driver.execute_script(f"document.getElementById('{element_id}').dispatchEvent(new Event('change'));")
-        # DEBUG: Verify input
-        current_val = self.driver.execute_script(f"return document.getElementById('{element_id}').value;")
-        print(f"[DEBUG] Input: ID={element_id} set to '{current_val}'")
+        # Verify
+        actual_val = self.driver.execute_script(f"return document.getElementById('{element_id}').value;")
+        print(f"[DEBUG] Input: ID={element_id} | Target='{text}' | Actual='{actual_val}'")
         try:
             self.wait.until(EC.invisibility_of_element_located((By.ID, 'ResultTable_processing')))
         except: pass
 
     def scrape_rankings(self, stroke, dist, gender, pool, min_age, max_age, start_date, end_date):
         try:
+            print(f"[DEBUG] Starting scrape: {start_date} to {end_date}")
             self.driver.get(self.initial_url)
             self.wait.until(EC.presence_of_element_located((By.ID, 'SwimmingTypeDetail')))
             
-            # Format dates
-            start_str = start_date.strftime('%dd/%mm/%YYYY')
-            end_str = end_date.strftime('%dd/%mm/%YYYY')
+            # Format dates as DD/MM/YYYY (Standard for Thai web input)
+            start_str = start_date.strftime('%d/%m/%Y')
+            end_str = end_date.strftime('%d/%m/%Y')
 
             self._select_and_wait('SwimmingTypeDetail', stroke['id'])
             self._select_and_wait('Distance', dist['id'])
             self._select_and_wait('GenderGroup', gender['id'])
             self._select_and_wait('PoolLengthId', pool['id'])
+            
             self._enter_text_and_wait('AgeGroupMin', min_age)
             self._enter_text_and_wait('AgeGroupMax', max_age)
+            
+            # Input Dates
             self._enter_text_and_wait('StartDate', start_str)
             self._enter_text_and_wait('EndDate', end_str)
             
+            # Wait for any background updates
             time.sleep(2)
-            table_element = self.wait.until(EC.presence_of_element_located((By.ID, 'ResultTable')))
-            df = pd.read_html(table_element.get_attribute('outerHTML'), flavor='html5lib')[0]
             
-            if not df.empty and 'No data' not in df.iloc[0,0]:
+            table_element = self.wait.until(EC.presence_of_element_located((By.ID, 'ResultTable')))
+            html = table_element.get_attribute('outerHTML')
+            dfs = pd.read_html(html, flavor='html5lib')
+            
+            if not dfs or dfs[0].empty:
+                print("[DEBUG] No table data found in HTML")
+                return pd.DataFrame()
+            
+            df = dfs[0]
+            if 'No data' in str(df.iloc[0,0]):
+                print("[DEBUG] Table contains 'No data available'")
+                return pd.DataFrame()
+
+            # Clean columns - expected columns: Rank, Name, Club, Nationality, Time, Competition, Start, End
+            if len(df.columns) >= 8:
                 df.columns = ['Rank', 'Name', 'Club', 'Nationality', 'Time', 'Competition', 'StartDate', 'EndDate']
-                return df
-            return pd.DataFrame()
+            
+            print(f"[DEBUG] Successfully scraped {len(df)} rows.")
+            return df
+            
         except Exception as e:
-            print(f"[DEBUG] Error: {e}")
+            print(f"[DEBUG] ERROR during scrape: {str(e)}")
             return None
 
     def close(self):
