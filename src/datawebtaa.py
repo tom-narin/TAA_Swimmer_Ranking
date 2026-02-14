@@ -4,8 +4,7 @@ from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 import time
-import tempfile
-import os
+import io
 from datetime import datetime
 from selenium.common.exceptions import TimeoutException
 
@@ -55,18 +54,27 @@ class SwimDataScraper:
         except: pass
 
     def _enter_text_and_wait(self, element_id, text):
-        # We use a more robust JS script to ensure value is set and events are triggered
+        # The TAA website often uses 'datepicker' libraries that override direct .value assignments.
+        # We clear the field, type specifically, or use JS to force the internal library to update.
         script = f"""
             var el = document.getElementById('{element_id}');
+            el.value = ''; 
             el.value = '{text}';
-            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            // Force the 'change' event to propagate to jQuery/DatePicker listeners
+            if (typeof(jQuery) !== 'undefined') {{
+                jQuery(el).trigger('change');
+            }} else {{
+                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }}
             el.blur();
         """
         self.driver.execute_script(script)
+        
         # Verify
         actual_val = self.driver.execute_script(f"return document.getElementById('{element_id}').value;")
         print(f"[DEBUG] Input: ID={element_id} | Target='{text}' | Actual='{actual_val}'")
+        
         try:
             self.wait.until(EC.invisibility_of_element_located((By.ID, 'ResultTable_processing')))
         except: pass
@@ -81,27 +89,27 @@ class SwimDataScraper:
             start_str = start_date.strftime('%d/%m/%Y')
             end_str = end_date.strftime('%d/%m/%Y')
 
+            # Standard selections
             self._select_and_wait('SwimmingTypeDetail', stroke['id'])
             self._select_and_wait('Distance', dist['id'])
             self._select_and_wait('GenderGroup', gender['id'])
             self._select_and_wait('PoolLengthId', pool['id'])
-            
             self._enter_text_and_wait('AgeGroupMin', min_age)
             self._enter_text_and_wait('AgeGroupMax', max_age)
             
-            # Input Dates
+            # CRITICAL: Input dates AFTER other selections to prevent them from being reset
             self._enter_text_and_wait('StartDate', start_str)
             self._enter_text_and_wait('EndDate', end_str)
             
-            # Wait for any background updates
-            time.sleep(2)
+            time.sleep(2) # Final breather for JS updates
             
             table_element = self.wait.until(EC.presence_of_element_located((By.ID, 'ResultTable')))
             html = table_element.get_attribute('outerHTML')
-            dfs = pd.read_html(html, flavor='html5lib')
+            
+            # Fix FutureWarning: wrap in StringIO
+            dfs = pd.read_html(io.StringIO(html), flavor='html5lib')
             
             if not dfs or dfs[0].empty:
-                print("[DEBUG] No table data found in HTML")
                 return pd.DataFrame()
             
             df = dfs[0]
@@ -109,7 +117,6 @@ class SwimDataScraper:
                 print("[DEBUG] Table contains 'No data available'")
                 return pd.DataFrame()
 
-            # Clean columns - expected columns: Rank, Name, Club, Nationality, Time, Competition, Start, End
             if len(df.columns) >= 8:
                 df.columns = ['Rank', 'Name', 'Club', 'Nationality', 'Time', 'Competition', 'StartDate', 'EndDate']
             
