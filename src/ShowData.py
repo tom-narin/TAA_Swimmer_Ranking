@@ -46,7 +46,7 @@ def time_to_seconds(time_str):
         return float('inf')
 
 # --- Main Dashboard ---
-st.title("🏊 TAA Performance Dashboard")
+st.title("🏊 TAA Ranking Dashboard")
 
 # --- Input Parameters at the Top ---
 with st.container():
