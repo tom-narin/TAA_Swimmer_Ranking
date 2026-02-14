@@ -86,8 +86,8 @@ class SwimDataScraper:
             self.wait.until(EC.presence_of_element_located((By.ID, 'SwimmingTypeDetail')))
             
             # Format dates as DD/MM/YYYY (Standard for Thai web input)
-            start_str = start_date.strftime('%d/%m/%Y')
-            end_str = end_date.strftime('%d/%m/%Y')
+            start_str = start_date.strftime('%mm/%dd/%YYYY')
+            end_str = end_date.strftime('%mm/%dd/%YYYY')
 
             # Standard selections
             self._select_and_wait('SwimmingTypeDetail', stroke['id'])
