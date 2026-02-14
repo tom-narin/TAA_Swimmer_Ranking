@@ -80,8 +80,12 @@ st.markdown(f"Currently tracking ** {SwimDataScraper.GENDERS[gender_key]['name']
 
 if fetch_button or 'current_df' in st.session_state:
     if fetch_button:
+        @st.cache_resource
+        def get_scraper():
+            return SwimDataScraper(headless=True)
+
         # Initialize your existing scraper class
-        scraper = SwimDataScraper(headless=True)
+        scraper = get_scraper()
         
         with st.spinner("Connecting to Thailand Aquatics Database..."):
             # Use your existing class methods
@@ -93,7 +97,7 @@ if fetch_button or 'current_df' in st.session_state:
                 str(min_age),
                 str(max_age)
             )
-            scraper.close()
+            # scraper.close() # Removed because st.cache_resource handles resource management
             st.session_state.current_df = df
     else:
         df = st.session_state.current_df
