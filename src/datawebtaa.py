@@ -72,8 +72,8 @@ class SwimDataScraper:
             self.wait.until(EC.presence_of_element_located((By.ID, 'SwimmingTypeDetail')))
             
             # Format dates
-            start_str = start_date.strftime('%d/%m/%Y')
-            end_str = end_date.strftime('%d/%m/%Y')
+            start_str = start_date.strftime('%d/%m/%YY')
+            end_str = end_date.strftime('%d/%m/%YY')
 
             self._select_and_wait('SwimmingTypeDetail', stroke['id'])
             self._select_and_wait('Distance', dist['id'])
