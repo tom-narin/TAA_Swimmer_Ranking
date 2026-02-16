@@ -1,0 +1,211 @@
+<script>
+    $(".banner-txt").html("สถิติ<br/> Statistic")
+    $("#navRanking").addClass("dropdown active")
+
+    var EventSwimmingId;
+    var RoundCompetitionType;
+    var swimmingTypeDetail = '2';
+    var distance = '1';
+
+    $(document).ready(function () {
+        $("#Distance").val(distance)
+        $("#SwimmingTypeDetail").val(swimmingTypeDetail)
+        $("#AgeGroupMin").val(10)
+        $("#GenderGroup").val(1)
+        $("#AgeGroupMax").val(100)
+        $("#NationId").val(0)
+        $("#PoolLengthId").val(1)
+        ReInitDatatable()
+    });
+
+     $("#StartDatePick").datetimepicker({
+     format: 'DD/MMM/YY',
+     date: new Date('4' + '/' + '5' + '/' + '2025'),
+ })
+
+
+ $("#EndDatePick").datetimepicker({
+     format: 'DD/MMM/YY',
+     date: new Date('3' + '/' + '15' + '/' + '2026'),
+ });
+
+    
+
+    $("#btn-filter").click(function () {
+        ReInitDatatable()
+        $('#TimeStd').val('');
+        $("#btn-filter").prop("disabled", true);
+    });
+
+    $(".form-control").not("#TimeStd").change(function () {
+        ReInitDatatable()
+    });
+
+    $("#TimeStd").keypress(function () {
+        var key = window.event ? event.keyCode : event.which;
+        if (event.keyCode === 8) {
+            return true;
+        } else if (key < 48 || key > 57) {
+            return false;
+        } else {
+            return true;
+        }
+    });
+
+    $('#TimeStd').keyup(function (e) {
+        var timeStandard = $(this).val();
+
+        if (e.which == 8) {
+            if (this.value.length == 2) {
+                $('#TimeStd').val(this.value.slice(0, -1));
+            } else if (this.value.length == 5) {
+                $('#TimeStd').val(this.value.slice(0, -1));
+            }
+        } else {
+            if (this.value.length == 2) {
+                this.value = timeStandard + ':';
+            } else if (this.value.length == 5) {
+                this.value = timeStandard + '.';
+            }
+        }
+
+        if (timeStandard.indexOf(":") != -1 && timeStandard.indexOf(".") != -1 && timeStandard.length == 8) {
+            $("#btn-filter").prop("disabled", false);
+        } else {
+            $("#btn-filter").prop("disabled", true);
+        }
+    });
+
+    $("#StartDatePick").on("dp.change", function (e) {
+        ReInitDatatable()
+    });
+
+    $("#EndDatePick").on("dp.change", function (e) {
+        ReInitDatatable()
+    });
+
+    function ReInitDatatable() {
+        var ModelCompetition = {
+            "TimestdF": $("#TimeStd").val(),
+            "SwimmingTypeDetailId": $("#SwimmingTypeDetail").val(),
+            "GenderId": $("#GenderGroup").val(),
+            "DistId": $("#Distance").val(),
+            "AgeMax": $("#AgeGroupMax").val(),
+            "AgeMin": $("#AgeGroupMin").val(),
+            "PoolLengthId": $("#PoolLengthId").val(),
+            "NationId": $("#NationId").val()
+        }
+
+        var dataAjax = {
+            "CompetitionEvent": JSON.stringify(ModelCompetition),
+            "startDate": $("#StartDate").val(),
+            "endDate": $("#EndDate").val()
+        }
+
+        $('#ResultTable').DataTable().clear().destroy();
+        var table = $('#ResultTable').DataTable({
+            "bInfo": true,
+            "bFilter": false,
+            "serverSide": true,
+            "info": true,
+            "ordering": false,
+            "scrollX": true,
+            "processing": true,
+            "pageLength": 50,
+            "fixedHeader": false,
+            "lengthMenu": [
+                [10, 20, 50, -1],
+                [10, 20, 50, "All"]
+            ],
+            "ajax": {
+                "url": "/Index/CheckRank",
+                data: dataAjax,
+                "type": "POST"
+            },
+            "columnDefs": [{
+                    "targets": [0, 2, 3, 4, 5, 6],
+                    className: 'text-center font'
+                },
+                {
+                    "targets": '_all',
+                    "orderable": false
+                },
+            ],
+            "columns": [{
+                    "data": "Place"
+                },
+
+                {
+                    "data": {},
+                    "render": function (data) {
+                        var txt = '';
+                        var link = '';
+                        link = `/Index/IndividualRecord?UserId=${data.UserId}&DistanceId=${$("#Distance").val()}&SwimmingDetailTypeId=${$("#SwimmingTypeDetail").val()}&startdate=${$("#StartDate").val().toString('dd-MM-yy')}&enddate=${$("#EndDate").val().toString('dd-MM-yy')}`
+                        txt = '<a class="txt_color_coldata text-left"  href="' + link + '">' + data
+                            .FullName + '</a>'
+                        return txt;
+                    }
+                },
+                {
+                    "data": {},
+                    render: function (data, type, full, meta) {
+                        return "<div class='text-wrap width-200'>" + data.ClubName + "</div>";
+                    },
+                },
+                {
+                    "data": "Nation"
+                },
+                {
+                    "data": "Time"
+                },
+                {
+                    "data": {},
+                    render: function (data, type, full, meta) {
+                        return "<div class='text-wrap width-200'>" + data.Competition.Name + "</div>";
+                    },
+
+                },
+                {
+                    "data": "Competition.StartDayString"
+                },
+                {
+                    "data": "Competition.EndDayString"
+                },
+
+            ],
+        });
+        $('.table').css('table-layout', 'fixed');
+        $('.sorting_disabled').addClass('table-header');
+        $('.dataTables_processing').addClass('processing');
+    }
+
+
+    /* Export */
+    $("#btn-export").click(() => {
+        const ModelCompetition = {
+            "TimestdF": $("#TimeStd").val(),
+            "SwimmingTypeDetailId": $("#SwimmingTypeDetail").val(),
+            "GenderId": $("#GenderGroup").val(),
+            "DistId": $("#Distance").val(),
+            "AgeMax": $("#AgeGroupMax").val(),
+            "AgeMin": $("#AgeGroupMin").val(),
+            "PoolLengthId": $("#PoolLengthId").val(),
+            "Nation": $("#Nationality").val()
+        }
+        const data = {
+            "CompetitionEvent": JSON.stringify(ModelCompetition),
+            "startDate": $("#StartDate").val(),
+            "endDate": $("#EndDate").val()
+        }
+        $.ajax({
+            url: '/Index/ExportRank',
+            data,
+            type: 'post',
+            success: (res) => {
+                if (res)
+                    window.open(res);
+            }
+        });
+        return false
+    });
+</script>

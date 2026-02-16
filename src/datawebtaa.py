@@ -85,9 +85,9 @@ class SwimDataScraper:
             self.driver.get(self.initial_url)
             self.wait.until(EC.presence_of_element_located((By.ID, 'SwimmingTypeDetail')))
             
-            # Format dates as DD/MM/YYYY (Standard for Thai web input)
-            start_str = start_date.strftime('%mm/%dd/%YYYY')
-            end_str = end_date.strftime('%mm/%dd/%YYYY')
+            # Format dates as DD/MMM/YY (matching website's datepicker format)
+            start_str = start_date.strftime('%d/%b/%y')
+            end_str = end_date.strftime('%d/%b/%y')
 
             # Standard selections
             self._select_and_wait('SwimmingTypeDetail', stroke['id'])
@@ -100,6 +100,33 @@ class SwimDataScraper:
             # CRITICAL: Input dates AFTER other selections to prevent them from being reset
             self._enter_text_and_wait('StartDate', start_str)
             self._enter_text_and_wait('EndDate', end_str)
+
+            try:
+                # Attempt 1: Standard <select> element (keeping as a quick check)
+                select_element = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '#ResultTable_length select')))
+                dropdown = Select(select_element)
+                dropdown.select_by_value('-1')
+                print("[DEBUG] Success: Used standard <select> to show all entries.")
+                self.wait.until(EC.invisibility_of_element_located((By.ID, 'ResultTable_processing')))
+            except TimeoutException:
+                print("[DEBUG] Info: Standard <select> not found. Trying custom dropdown interaction (e.g., Bootstrap/DataTables style).")
+                try:
+                    # Attempt 2: Click a dropdown-toggle button, then find the 'All' link.
+                    
+                    # 1. Find and click the button that opens the dropdown menu.
+                    # This targets a button with class 'dropdown-toggle' inside the length container.
+                    trigger_button = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, '#ResultTable_length .dropdown-toggle')))
+                    trigger_button.click()
+                    print("[DEBUG] Info: Clicked dropdown trigger button.")
+
+                    # 2. Wait for the 'All' option link to appear in the menu and click it.
+                    all_option_link = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//ul[contains(@class, 'dropdown-menu')]//a[normalize-space()='All']")))
+                    all_option_link.click()
+                    
+                    print("[DEBUG] Success: Used custom dropdown to show all entries.")
+                    self.wait.until(EC.invisibility_of_element_located((By.ID, 'ResultTable_processing')))
+                except Exception as e:
+                    print(f"[DEBUG] Error: Failed to interact with custom dropdown. Proceeding with default. Error: {e}")
             
             time.sleep(2) # Final breather for JS updates
             
@@ -119,6 +146,19 @@ class SwimDataScraper:
 
             if len(df.columns) >= 8:
                 df.columns = ['Rank', 'Name', 'Club', 'Nationality', 'Time', 'Competition', 'StartDate', 'EndDate']
+            
+            # Add context columns from scrape parameters
+            df['Stroke'] = stroke['name']
+            df['Distance'] = dist['name']
+            df['AgeRange'] = f"{min_age}-{max_age}" # Storing age as a range string
+            df['Pool'] = pool['name']
+            df['Gender'] = gender['name']
+
+            # Rename StartDate to CompetitionDate and drop EndDate
+            if 'StartDate' in df.columns:
+                df.rename(columns={'StartDate': 'CompetitionDate'}, inplace=True)
+            if 'EndDate' in df.columns:
+                df.drop(columns=['EndDate'], inplace=True)
             
             print(f"[DEBUG] Successfully scraped {len(df)} rows.")
             return df
