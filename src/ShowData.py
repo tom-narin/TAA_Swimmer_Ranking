@@ -344,53 +344,61 @@ def dashboard_page():
     c2.metric("Unique Swimmers", filtered_df['Name'].nunique())
     c3.metric("Unique Competitions", filtered_df['Competition'].nunique())
 
-    st.subheader("Records by Stroke and Distance")
-    # Group by stroke and then by distance
-    grouped_by_stroke_distance = filtered_df.groupby(['Stroke', 'Distance'])
-    
-    # Get unique strokes for the selectbox, maintaining order from STROKES.values()
-    # Also include "All" option
-    available_strokes_in_filter = ["All"] + [s['name'] for s in SwimDataScraper.STROKES.values() if s['name'] in filtered_df['Stroke'].unique()]
-    selected_display_stroke = st.selectbox("Select Stroke to Display", available_strokes_in_filter, key="display_stroke_filter")
+    st.subheader("Records by Stroke")
+    display_cols = ['Name', 'Distance', 'Time', 'CompetitionDate', 'Competition']
+    # Ensure STROKES has an order or use sorted keys for consistent display
+    # Using sorted list of stroke names based on SwimDataScraper.STROKES
+    ordered_stroke_names = [s['name'] for s in SwimDataScraper.STROKES.values()]
 
-    # Filter by selected display stroke if not "All"
-    if selected_display_stroke != "All":
-        display_filtered_df = filtered_df[filtered_df['Stroke'] == selected_display_stroke].copy()
-    else:
-        display_filtered_df = filtered_df.copy()
+    for stroke_name in ordered_stroke_names:
+        # Filter the main filtered_df for the current stroke
+        stroke_df = filtered_df[filtered_df['Stroke'] == stroke_name].copy()
 
-    # Get unique distances for the selectbox, if a stroke is selected
-    available_distances_in_filter = ["All"]
-    if selected_display_stroke != "All":
-        available_distances_in_filter += [d['name'] for d in SwimDataScraper.DISTANCES.values() if d['name'] in display_filtered_df['Distance'].unique()]
-    else:
-        available_distances_in_filter += [d['name'] for d in SwimDataScraper.DISTANCES.values() if d['name'] in filtered_df['Distance'].unique()]
-    
-    selected_display_distance = st.selectbox("Select Distance to Display", available_distances_in_filter, key="display_distance_filter")
+        if not stroke_df.empty:
+            with st.expander(f"**{stroke_name} Records** ({len(stroke_df)} total)", expanded=False):
+                # --- Filters for this specific stroke ---
+                col1, col2 = st.columns([0.7, 0.3])
+                
+                # Distance filter for this stroke
+                all_distances_for_stroke = ["All"] + sorted(stroke_df['Distance'].unique().tolist())
+                selected_distance_for_stroke = col1.selectbox(
+                    "Distance", 
+                    all_distances_for_stroke, 
+                    key=f"distance_filter_{stroke_name.replace(' ', '_')}"
+                )
 
-    # Filter by selected display distance if not "All"
-    if selected_display_distance != "All":
-        display_filtered_df = display_filtered_df[display_filtered_df['Distance'] == selected_display_distance].copy()
+                # Show Top N filter for this stroke
+                show_top_n_for_stroke = col2.number_input(
+                    "Show Top N", 
+                    min_value=1, 
+                    value=min(10, len(stroke_df)), # Default to 10 or max available
+                    step=1, 
+                    key=f"top_n_filter_{stroke_name.replace(' ', '_')}"
+                )
 
-    if display_filtered_df.empty:
-        st.info("No records found for the selected display stroke and distance.")
-        return
+                # Apply distance filter
+                current_display_df = stroke_df.copy()
+                if selected_distance_for_stroke != "All":
+                    current_display_df = current_display_df[current_display_df['Distance'] == selected_distance_for_stroke]
 
-    # Add 'Show Top N' filter
-    show_top_n = st.number_input("Show Top N Records", min_value=1, value=10, step=1, key="show_top_n_filter")
+                if current_display_df.empty:
+                    st.info(f"No {selected_distance_for_stroke} records found for {stroke_name} with current filters.")
+                    continue
 
-    # Ensure display_filtered_df has '_sortable_time' column for consistent sorting
-    display_filtered_df['_sortable_time'] = display_filtered_df['Time'].apply(time_string_to_seconds)
-    display_filtered_df = display_filtered_df.sort_values(by='_sortable_time', ascending=True)
-    display_filtered_df = display_filtered_df.drop(columns=['_sortable_time'])
+                # Convert 'Time' to sortable numeric for sorting
+                current_display_df['_sortable_time'] = current_display_df['Time'].apply(time_string_to_seconds)
+                current_display_df = current_display_df.sort_values(by='_sortable_time', ascending=True)
+                current_display_df = current_display_df.drop(columns=['_sortable_time']) # Drop the temporary column
+                
+                # Apply 'Show Top N' filter
+                current_display_df = current_display_df.head(show_top_n_for_stroke)
 
-    # Apply 'Show Top N'
-    display_filtered_df = display_filtered_df.head(show_top_n)
-
-    if not display_filtered_df.empty:
-        st.dataframe(display_filtered_df[['Name', 'Age', 'Club', 'School', 'Time', 'CompetitionDate', 'Competition']], width='stretch')
-    else:
-        st.info("No records found with current display filters.")
+                if not current_display_df.empty:
+                    st.dataframe(current_display_df[display_cols], width='stretch')
+                else:
+                    st.info(f"No records found for {stroke_name} with the selected filters and top N.")
+        else:
+            st.info(f"No {stroke_name} records found with current filters.")
 
 def main():
     db.init_db()
