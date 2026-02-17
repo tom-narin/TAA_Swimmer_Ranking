@@ -55,6 +55,21 @@ def format_date_to_thai_buddhist(date_obj):
         return f"{date_obj.day}/{thai_month}/{buddhist_year}"
     return None
 
+def time_string_to_seconds(time_str):
+    """Converts a time string (MM:SS.ss) to total seconds for sorting."""
+    if isinstance(time_str, str):
+        try:
+            parts = time_str.split(':')
+            minutes = int(parts[0])
+            seconds_parts = parts[1].split('.')
+            seconds = int(seconds_parts[0])
+            milliseconds = int(seconds_parts[1]) if len(seconds_parts) > 1 else 0
+            total_seconds = (minutes * 60) + seconds + (milliseconds / 100)
+            return total_seconds
+        except (ValueError, IndexError):
+            return float('inf') # Push invalid times to the end
+    return float('inf')
+
 def add_record_page():
     st.header("📝 Add a New Swim Record")
     # Initialize session state variables
@@ -329,14 +344,53 @@ def dashboard_page():
     c2.metric("Unique Swimmers", filtered_df['Name'].nunique())
     c3.metric("Unique Competitions", filtered_df['Competition'].nunique())
 
-    st.subheader("Records by Stroke")
-    display_cols = ['Name', 'Distance', 'Time', 'CompetitionDate', 'Competition']
-    strokes_to_display = {s['name']: f"{s['name'].split(' ')[0]} Records" for s in SwimDataScraper.STROKES.values()}
-    for stroke_name, table_title in strokes_to_display.items():
-        stroke_df = filtered_df[filtered_df['Stroke'] == stroke_name]
-        if not stroke_df.empty:
-            st.markdown(f"**{table_title}**")
-            st.dataframe(stroke_df[display_cols], width='stretch')
+    st.subheader("Records by Stroke and Distance")
+    # Group by stroke and then by distance
+    grouped_by_stroke_distance = filtered_df.groupby(['Stroke', 'Distance'])
+    
+    # Get unique strokes for the selectbox, maintaining order from STROKES.values()
+    # Also include "All" option
+    available_strokes_in_filter = ["All"] + [s['name'] for s in SwimDataScraper.STROKES.values() if s['name'] in filtered_df['Stroke'].unique()]
+    selected_display_stroke = st.selectbox("Select Stroke to Display", available_strokes_in_filter, key="display_stroke_filter")
+
+    # Filter by selected display stroke if not "All"
+    if selected_display_stroke != "All":
+        display_filtered_df = filtered_df[filtered_df['Stroke'] == selected_display_stroke].copy()
+    else:
+        display_filtered_df = filtered_df.copy()
+
+    # Get unique distances for the selectbox, if a stroke is selected
+    available_distances_in_filter = ["All"]
+    if selected_display_stroke != "All":
+        available_distances_in_filter += [d['name'] for d in SwimDataScraper.DISTANCES.values() if d['name'] in display_filtered_df['Distance'].unique()]
+    else:
+        available_distances_in_filter += [d['name'] for d in SwimDataScraper.DISTANCES.values() if d['name'] in filtered_df['Distance'].unique()]
+    
+    selected_display_distance = st.selectbox("Select Distance to Display", available_distances_in_filter, key="display_distance_filter")
+
+    # Filter by selected display distance if not "All"
+    if selected_display_distance != "All":
+        display_filtered_df = display_filtered_df[display_filtered_df['Distance'] == selected_display_distance].copy()
+
+    if display_filtered_df.empty:
+        st.info("No records found for the selected display stroke and distance.")
+        return
+
+    # Add 'Show Top N' filter
+    show_top_n = st.number_input("Show Top N Records", min_value=1, value=10, step=1, key="show_top_n_filter")
+
+    # Ensure display_filtered_df has '_sortable_time' column for consistent sorting
+    display_filtered_df['_sortable_time'] = display_filtered_df['Time'].apply(time_string_to_seconds)
+    display_filtered_df = display_filtered_df.sort_values(by='_sortable_time', ascending=True)
+    display_filtered_df = display_filtered_df.drop(columns=['_sortable_time'])
+
+    # Apply 'Show Top N'
+    display_filtered_df = display_filtered_df.head(show_top_n)
+
+    if not display_filtered_df.empty:
+        st.dataframe(display_filtered_df[['Name', 'Age', 'Club', 'School', 'Time', 'CompetitionDate', 'Competition']], width='stretch')
+    else:
+        st.info("No records found with current display filters.")
 
 def main():
     db.init_db()

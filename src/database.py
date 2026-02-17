@@ -52,11 +52,25 @@ def init_db():
 
     conn.commit()
 
-    # Populate SchoolTable from file if it's empty
-    populate_school_table('schoolname.txt') # Assuming the file path
+    # Always refresh SchoolTable with latest data from file
+    refresh_school_data('schoolname.txt') 
 
     conn.close()
     print("[DEBUG] Database initialized.")
+
+def refresh_school_data(file_path='schoolname.txt'):
+    """
+    Clears the SchoolTable and then re-populates it from the specified file.
+    This ensures the SchoolTable is always up-to-date with the schoolname.txt file.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM SchoolTable")
+    conn.commit()
+    conn.close()
+    print("[DEBUG] SchoolTable cleared. Re-populating...")
+    populate_school_table(file_path)
+    print("[DEBUG] SchoolTable refreshed.")
 
 def populate_school_table(file_path):
     conn = sqlite3.connect(DB_FILE)
