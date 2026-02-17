@@ -68,8 +68,9 @@ def refresh_school_data(file_path='schoolname.txt'):
     c.execute("DELETE FROM SchoolTable")
     conn.commit()
     conn.close()
-    print("[DEBUG] SchoolTable cleared. Re-populating...")
-    populate_school_table(file_path)
+    abs_file_path = os.path.join(os.path.dirname(__file__), file_path)
+    print(f"[DEBUG] Refreshing SchoolTable from: {abs_file_path}")
+    populate_school_table(abs_file_path)
     print("[DEBUG] SchoolTable refreshed.")
 
 def populate_school_table(file_path):
