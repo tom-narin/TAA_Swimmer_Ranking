@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import os
+import sqlite3
 from datetime import date, timedelta
 from datawebtaa import SwimDataScraper
 from datawebtaa_ajax import SwimDataAjaxScraper
@@ -302,6 +304,24 @@ def scraping_and_management_page():
 
 def dashboard_page():
     st.header("📊 Ranking Dashboard")
+    
+    # --- Debug Information (Hidden by default in expander) ---
+    with st.sidebar.expander("🛠️ Debug DB Info"):
+        st.write(f"**DB Path:** `{db.DB_FILE}`")
+        db_exists = os.path.exists(db.DB_FILE)
+        st.write(f"**DB Exists:** {'✅ Yes' if db_exists else '❌ No'}")
+        if db_exists:
+            try:
+                import sqlite3
+                conn = sqlite3.connect(db.DB_FILE)
+                c = conn.cursor()
+                c.execute("SELECT COUNT(*) FROM RecordTable")
+                count = c.fetchone()[0]
+                st.write(f"**Record Count:** `{count}`")
+                conn.close()
+            except Exception as e:
+                st.error(f"Error checking record count: {e}")
+
     st.info("Explore and analyze your saved swimming records.")
     records_df = db.get_records()
     if records_df.empty:
@@ -403,6 +423,23 @@ def dashboard_page():
 def main():
     db.init_db()
     if 'scraped_data' not in st.session_state: st.session_state.scraped_data = None
+    
+    # --- Sidebar Status ---
+    st.sidebar.title("📊 System Status")
+    db_exists = os.path.exists(db.DB_FILE)
+    if db_exists:
+        try:
+            conn = sqlite3.connect(db.DB_FILE)
+            c = conn.cursor()
+            c.execute("SELECT COUNT(*) FROM RecordTable")
+            count = c.fetchone()[0]
+            st.sidebar.success(f"Database: Connected ({count} records)")
+            conn.close()
+        except Exception as e:
+            st.sidebar.error(f"Database: Connection Error: {e}")
+    else:
+        st.sidebar.error("Database: Missing (Creating empty)")
+
     st.sidebar.title("Navigation")
     page = st.sidebar.radio("Go to", ("Dashboard", "Data Management", "Add Record"), index=0)
 
