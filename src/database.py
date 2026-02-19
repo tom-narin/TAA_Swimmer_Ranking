@@ -3,11 +3,11 @@ import pandas as pd
 import hashlib
 import os
 
-DB_FILE = "swim_data.db"
+DB_FILE = os.path.join(os.path.dirname(__file__), "swim_data.db")
 
 def init_db():
     """Initializes the database and creates tables if they don't exist."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
 
     # Swimmer Table - for unique swimmer profiles
@@ -63,7 +63,7 @@ def refresh_school_data(file_path='schoolname.txt'):
     Clears the SchoolTable and then re-populates it from the specified file.
     This ensures the SchoolTable is always up-to-date with the schoolname.txt file.
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
     c.execute("DELETE FROM SchoolTable")
     conn.commit()
@@ -74,7 +74,7 @@ def refresh_school_data(file_path='schoolname.txt'):
     print("[DEBUG] SchoolTable refreshed.")
 
 def populate_school_table(file_path):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
 
     # Check if table is empty
@@ -110,7 +110,7 @@ def populate_school_table(file_path):
 
 def get_schools() -> pd.DataFrame:
     """Fetches all school data from the SchoolTable."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     df = pd.read_sql_query("SELECT * FROM SchoolTable", conn)
     conn.close()
     return df
@@ -123,7 +123,7 @@ def add_records(df: pd.DataFrame):
     if df.empty:
         return 0
         
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
     records_added = 0
 
@@ -180,7 +180,7 @@ def add_records(df: pd.DataFrame):
 
 def get_swimmers() -> pd.DataFrame:
     """Fetches all swimmer profiles from the database."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     df = pd.read_sql_query("SELECT * FROM SwimmerTable", conn)
     conn.close()
     return df
@@ -190,7 +190,7 @@ def sync_swimmers(df: pd.DataFrame):
     Synchronizes the SwimmerTable with the provided DataFrame.
     Handles additions, updates, and deletions.
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
 
     # Generate UniqID for new rows if they are empty (based on Name)
@@ -232,7 +232,7 @@ def sync_swimmers(df: pd.DataFrame):
 
 def get_records() -> pd.DataFrame:
     """Fetches all records from the database, including swimmer gender and school."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     query = """
     SELECT
         R.*,
@@ -255,7 +255,7 @@ def add_single_record(data: dict) -> bool:
     Ensures swimmer exists in SwimmerTable and then adds the record to RecordTable.
     Returns True on success, False on failure (e.g., duplicate record).
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
 
     try:
@@ -311,7 +311,7 @@ def search_swimmers(name_query: str) -> pd.DataFrame:
     """Searches for swimmers by name (case-insensitive)."""
     if not name_query:
         return pd.DataFrame()
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     query = "SELECT * FROM SwimmerTable WHERE Name LIKE ? ESCAPE '\\' LIMIT 10"
     df = pd.read_sql_query(query, conn, params=(f"%{name_query.replace('%', '\\%').replace('_', '\\_')}%",))
     conn.close()
@@ -319,7 +319,7 @@ def search_swimmers(name_query: str) -> pd.DataFrame:
 
 def get_swimmer_by_name(name: str) -> pd.Series:
     """Fetches a single swimmer's details by their exact name."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     df = pd.read_sql_query("SELECT * FROM SwimmerTable WHERE Name = ?", conn, params=(name,))
     conn.close()
     if not df.empty:
@@ -330,7 +330,7 @@ def search_competitions(name_query: str) -> list:
     """Searches for unique competition names by name (case-insensitive)."""
     if not name_query:
         return []
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
     query = "SELECT DISTINCT Competition FROM RecordTable WHERE Competition LIKE ? ESCAPE '\\' LIMIT 10"
     c.execute(query, (f"%{name_query.replace('%', '\\%').replace('_', '\\_')}%",))
@@ -340,7 +340,7 @@ def search_competitions(name_query: str) -> list:
 
 def get_competition_date(competition_name: str) -> str:
     """Gets the most recent date string for a given competition."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
     c.execute("SELECT CompetitionDate FROM RecordTable WHERE Competition = ? AND CompetitionDate IS NOT NULL LIMIT 1", (competition_name,))
     result = c.fetchone()
@@ -353,7 +353,7 @@ def sync_records(df: pd.DataFrame):
     This function only performs UPDATES on existing records based on UniqueID.
     It does not allow adding or deleting records for safety.
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
     updated_count = 0
     
@@ -400,7 +400,7 @@ def delete_records(unique_ids: list):
     if not unique_ids:
         return 0
     
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     c = conn.cursor()
     
     try:
